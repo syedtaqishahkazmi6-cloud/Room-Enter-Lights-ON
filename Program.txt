@@ -1,0 +1,84 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// OLED Configuration
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+// Pin Definitions
+const int trigPin = 9;
+const int echoPin = 10;
+const int relayPin = 12;
+
+// Variables
+bool relayState = false;      // Current state of the relay
+bool objectPresent = false;   // Whether an object is currently in range
+bool lastObjectPresent = false; // Previous detection state
+int threshold = 20;           // Detection distance in cm
+
+void setup() {
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(relayPin, OUTPUT);
+  
+  digitalWrite(relayPin, LOW); // Start with lights off
+
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    for(;;); // Don't proceed if OLED fails
+  }
+  
+  updateDisplay("System Ready");
+  delay(1000);
+  updateDisplay("Lights: OFF");
+}
+
+void loop() {
+  long duration;
+  int distance;
+
+  // Trigger the ultrasonic sensor
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  duration = pulseIn(echoPin, HIGH);
+  distance = duration * 0.034 / 2;
+
+  // Check if an object is within the threshold
+  if (distance > 0 && distance < threshold) {
+    objectPresent = true;
+  } else {
+    objectPresent = false;
+  }
+
+  // Toggle Logic: Trigger only when an object first appears (State Change)
+  if (objectPresent == true && lastObjectPresent == false) {
+    relayState = !relayState; // Flip the state
+    
+    if (relayState) {
+      digitalWrite(relayPin, HIGH);
+      updateDisplay("Lights: ON");
+    } else {
+      digitalWrite(relayPin, LOW);
+      updateDisplay("Lights: OFF");
+    }
+    
+    delay(500); // Small debounce delay to prevent double-triggering
+  }
+
+  lastObjectPresent = objectPresent; // Save the state for the next loop
+  delay(50); 
+}
+
+void updateDisplay(String message) {
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 20);
+  display.println(message);
+  display.display();
+}
